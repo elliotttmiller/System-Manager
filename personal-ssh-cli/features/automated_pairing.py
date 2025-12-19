@@ -26,6 +26,27 @@ try:
 except ImportError:
     CRYPTO_AVAILABLE = False
 
+# Package-qualified imports (guarded) so language servers can resolve them
+try:
+    from local.system_monitoring import SystemMonitor
+except Exception:
+    SystemMonitor = None
+
+try:
+    from local.service_monitor import ServiceMonitor
+except Exception:
+    ServiceMonitor = None
+
+try:
+    from security.auth_manager import AuthManager
+except Exception:
+    AuthManager = None
+
+try:
+    from remote.remote_system_monitoring import RemoteSystemMonitor
+except Exception:
+    RemoteSystemMonitor = None
+
 
 class AutomatedPairing:
     """Automated pairing system for Desktop-Laptop SSH configuration."""
@@ -100,25 +121,33 @@ class AutomatedPairing:
         """Detect system information using LOCAL monitoring tools."""
         print("\n🔍 Detecting system information (LOCAL)...")
         
-        # Import local system monitoring if available
-        try:
-            sys.path.insert(0, str(Path(__file__).parent.parent / "local"))
-            from system_monitoring import SystemMonitor
-            monitor = SystemMonitor()
-            sys_metrics = monitor.get_system_metrics()
-            
-            info = {
-                'hostname': sys_metrics.get('hostname', socket.gethostname()),
-                'os': platform.system(),
-                'os_version': platform.version(),
-                'username': getpass.getuser(),
-                'ip_addresses': self._get_network_ips(),
-                'cpu_info': sys_metrics.get('cpu'),
-                'memory_info': sys_metrics.get('memory'),
-            }
-        except Exception as e:
+        # Use package-qualified SystemMonitor if available
+        if SystemMonitor:
+            try:
+                monitor = SystemMonitor()
+                sys_metrics = monitor.get_system_metrics()
+
+                info = {
+                    'hostname': sys_metrics.get('hostname', socket.gethostname()),
+                    'os': platform.system(),
+                    'os_version': platform.version(),
+                    'username': getpass.getuser(),
+                    'ip_addresses': self._get_network_ips(),
+                    'cpu_info': sys_metrics.get('cpu'),
+                    'memory_info': sys_metrics.get('memory'),
+                }
+            except Exception as e:
+                # Fallback to basic detection
+                print(f"⚠️  Advanced monitoring unavailable, using basic detection: {e}")
+                info = {
+                    'hostname': socket.gethostname(),
+                    'os': platform.system(),
+                    'os_version': platform.version(),
+                    'username': getpass.getuser(),
+                    'ip_addresses': self._get_network_ips(),
+                }
+        else:
             # Fallback to basic detection
-            print(f"⚠️  Advanced monitoring unavailable, using basic detection: {e}")
             info = {
                 'hostname': socket.gethostname(),
                 'os': platform.system(),
@@ -134,31 +163,32 @@ class AutomatedPairing:
         """Configure SSH server using LOCAL service monitor."""
         print("\n🔧 Configuring SSH server (LOCAL service monitor)...")
         
-        try:
-            sys.path.insert(0, str(Path(__file__).parent.parent / "local"))
-            from service_monitor import ServiceMonitor
-            service_mon = ServiceMonitor()
-            
-            # Check SSH service status
-            ssh_status = service_mon.check_ssh_service()
-            
-            if ssh_status.get('running'):
-                print("✅ SSH server is already running")
-            else:
-                print("⚠️  SSH server not running, attempting to start...")
-                # Start SSH service if not running
-                # Note: This might require admin/sudo privileges
-                start_result = service_mon.start_ssh_service()
-                if start_result.get('success'):
-                    print("✅ SSH server started successfully")
+        # Use package-qualified ServiceMonitor if available
+        if ServiceMonitor:
+            try:
+                service_mon = ServiceMonitor()
+
+                # Check SSH service status
+                ssh_status = service_mon.check_ssh_service()
+
+                if ssh_status.get('running'):
+                    print("✅ SSH server is already running")
                 else:
-                    print(f"⚠️  Could not start SSH server: {start_result.get('error')}")
-            
-            return ssh_status
-            
-        except Exception as e:
-            print(f"⚠️  Could not use local service monitor: {e}")
-            return {'running': False, 'error': str(e)}
+                    print("⚠️  SSH server not running, attempting to start...")
+                    # Start SSH service if not running
+                    # Note: This might require admin/sudo privileges
+                    start_result = service_mon.start_ssh_service()
+                    if start_result.get('success'):
+                        print("✅ SSH server started successfully")
+                    else:
+                        print(f"⚠️  Could not start SSH server: {start_result.get('error')}")
+
+                return ssh_status
+            except Exception as e:
+                print(f"⚠️  Could not use local service monitor: {e}")
+                return {'running': False, 'error': str(e)}
+        else:
+            return {'running': False, 'error': 'ServiceMonitor not available'}
     
     def _setup_ssh_keys_local(self) -> Optional[Dict[str, Any]]:
         """Setup SSH keys using LOCAL security tools."""
@@ -168,38 +198,41 @@ class AutomatedPairing:
         if generate != 'y':
             return None
         
-        try:
-            sys.path.insert(0, str(Path(__file__).parent.parent / "security"))
-            from auth_manager import AuthManager
-            auth_mgr = AuthManager(self.config_manager)
-            
-            # Check if keys exist
-            ssh_dir = Path.home() / ".ssh"
-            key_types = ['ed25519', 'rsa']
-            
-            for key_type in key_types:
-                key_path = ssh_dir / f"id_{key_type}"
-                if key_path.exists():
-                    print(f"✅ SSH key already exists: {key_path}")
-                    return {
-                        'type': key_type,
-                        'private_key_path': str(key_path),
-                        'public_key_path': str(key_path) + ".pub",
-                    }
-            
-            # Generate new key
-            print("🔑 Generating new SSH key (ed25519)...")
-            result = auth_mgr.generate_ssh_key('ed25519')
-            
-            if result.get('success'):
-                print(f"✅ Key generated: {result['key_path']}")
-                return result
-            else:
-                print(f"⚠️  Key generation failed: {result.get('error')}")
-                return None
+        # Use package-qualified AuthManager if available
+        if AuthManager:
+            try:
+                auth_mgr = AuthManager(self.config_manager)
+
+                # Check if keys exist
+                ssh_dir = Path.home() / ".ssh"
+                key_types = ['ed25519', 'rsa']
+
+                for key_type in key_types:
+                    key_path = ssh_dir / f"id_{key_type}"
+                    if key_path.exists():
+                        print(f"✅ SSH key already exists: {key_path}")
+                        return {
+                            'type': key_type,
+                            'private_key_path': str(key_path),
+                            'public_key_path': str(key_path) + ".pub",
+                        }
+
+                # Generate new key
+                print("🔑 Generating new SSH key (ed25519)...")
+                result = auth_mgr.generate_ssh_key('ed25519')
+
+                if result.get('success'):
+                    print(f"✅ Key generated: {result['key_path']}")
+                    return result
+                else:
+                    print(f"⚠️  Key generation failed: {result.get('error')}")
+                    return None
                 
-        except Exception as e:
-            print(f"⚠️  Could not use security manager: {e}")
+            except Exception as e:
+                print(f"⚠️  Could not use security manager: {e}")
+                return None
+        else:
+            print("⚠️  Security manager not available")
             return None
     
     def _get_network_ips(self) -> List[str]:
@@ -371,13 +404,20 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         # Step 3: Import profile using config manager
         if self.config_manager:
             try:
-                self.config_manager.add_profile(
-                    name=profile['name'],
-                    hostname=profile['hostname'],
-                    username=profile['username'],
-                    port=profile.get('port', 22),
-                    key_file=profile.get('key_file'),
-                )
+                # ConfigManager.add_profile expects (name, profile_dict)
+                profile_dict = {
+                    'hostname': profile.get('hostname'),
+                    'username': profile.get('username'),
+                    'port': profile.get('port', 22),
+                    'key_file': profile.get('key_file'),
+                    # preserve any additional metadata
+                    'device_type': profile.get('device_type'),
+                    'os': profile.get('os'),
+                    'created': profile.get('created'),
+                    'description': profile.get('description'),
+                }
+
+                self.config_manager.add_profile(profile['name'], profile_dict)
                 print(f"✅ Profile '{profile['name']}' imported successfully")
             except Exception as e:
                 return {
@@ -452,16 +492,15 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                     
                     # Try remote system monitoring
                     try:
-                        sys.path.insert(0, str(Path(__file__).parent.parent / "remote"))
-                        from remote_system_monitoring import RemoteSystemMonitor
-                        
-                        remote_monitor = RemoteSystemMonitor()
-                        ssh_conn = connection_manager.get_connection(conn_id)
-                        remote_monitor.set_connection(ssh_conn.client, {'host': profile_name})
-                        
-                        metrics = remote_monitor.get_system_metrics()
-                        print(f"✅ Remote monitoring working - CPU: {metrics.get('cpu', {}).get('percent', 'N/A')}%")
-                        
+                        if RemoteSystemMonitor:
+                            remote_monitor = RemoteSystemMonitor()
+                            ssh_conn = connection_manager.get_connection(conn_id)
+                            remote_monitor.set_connection(ssh_conn.client, {'host': profile_name})
+
+                            metrics = remote_monitor.get_system_metrics()
+                            print(f"✅ Remote monitoring working - CPU: {metrics.get('cpu', {}).get('percent', 'N/A')}%")
+                        else:
+                            print("⚠️  RemoteSystemMonitor not available")
                     except Exception as e:
                         print(f"⚠️  Remote monitoring unavailable: {e}")
                 
