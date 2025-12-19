@@ -299,7 +299,7 @@ class TUIEngine:
             Prompt.ask("[dim]Press Enter to continue[/dim]")
     
     def connect_to_device(self, profile_name: str):
-        """Establish SSH connection with animated progress."""
+        """Establish SSH connection and open device management menu."""
         self.console.print()
         
         try:
@@ -318,17 +318,15 @@ class TUIEngine:
             # Success message with effect
             self.console.print()
             self.console.print(Panel(
-                "[success]✓ Connected successfully![/success]",
+                "[success]✓ Connected successfully![/success]\n\n"
+                f"[info]Profile:[/info] {profile_name}",
                 border_style="success",
-                padding=(0, 2)
+                padding=(1, 2)
             ))
+            time.sleep(0.5)
             
-            # Interactive shell session
-            self.console.print("\n[info]Starting interactive session...[/info]")
-            time.sleep(0.3)
-            # TODO: Implement interactive shell
-            
-            self.console.print("[dim]Connection closed.[/dim]\n")
+            # Open device management session
+            self.device_management_session(profile_name, session)
             
         except Exception as e:
             self.console.print()
@@ -338,8 +336,89 @@ class TUIEngine:
                 padding=(1, 2)
             ))
             self.console.print()
+            Prompt.ask("[dim]Press Enter to continue[/dim]")
+    
+    def device_management_session(self, profile_name: str, session):
+        """Interactive device management session with access to all remote features."""
+        while True:
+            self.clear_screen()
+            
+            self.console.print()
+            title = Text(f"Device Session: {profile_name}", style="primary")
+            self.console.print(Panel(title, border_style="border", padding=(0, 2)))
+            self.console.print()
+            
+            result = radiolist_dialog(
+                title="",
+                text="What would you like to do?",
+                values=[
+                    ("remote_features", "🌐  Remote Device Features"),
+                    ("file_transfer", "📁  File Transfer"),
+                    ("shell", "💻  Interactive Shell"),
+                    ("monitoring", "📊  Real-time Monitoring"),
+                    ("disconnect", "🚪  Disconnect"),
+                ],
+                style=PT_DARK_STYLE,
+            ).run()
+            
+            if result == "remote_features":
+                self.show_remote_features_for_session(session)
+            elif result == "file_transfer":
+                self.show_transfer()
+            elif result == "shell":
+                self.console.print("\n[yellow]Interactive shell coming soon![/yellow]\n")
+                self.console.print("[info]Will provide full terminal access to remote device[/info]\n")
+                Prompt.ask("[dim]Press Enter to continue[/dim]")
+            elif result == "monitoring":
+                self.console.print("\n[yellow]Real-time monitoring coming soon![/yellow]\n")
+                self.console.print("[info]Will show live system stats and logs[/info]\n")
+                Prompt.ask("[dim]Press Enter to continue[/dim]")
+            elif result == "disconnect" or result is None:
+                # Disconnect from device
+                try:
+                    session.disconnect()
+                    self.console.print("\n[success]✓ Disconnected from device[/success]\n")
+                except:
+                    pass
+                time.sleep(0.3)
+                break
+    
+    def show_remote_features_for_session(self, session):
+        """Show remote features menu during an active session."""
+        self.clear_screen()
         
-        Prompt.ask("[dim]Press Enter to continue[/dim]")
+        self.console.print()
+        title = Text("Remote Device Features", style="primary")
+        self.console.print(Panel(title, border_style="border", padding=(0, 2)))
+        self.console.print()
+        
+        # Build menu from loaded remote features
+        values = []
+        
+        feature_icons = {
+            "remote_system_monitoring": "📊",
+            "remote_file_management": "📁",
+            "remote_process_management": "⚙️",
+            "remote_network_tools": "🌐",
+            "remote_security": "🔒"
+        }
+        
+        for feature_name, feature_module in self.remote_features.items():
+            display_name = feature_name.replace('_', ' ').title()
+            icon = feature_icons.get(feature_name, "🔧")
+            values.append((feature_name, f"{icon}  {display_name}"))
+        
+        values.append(("back", "⬅️  Back to Session Menu"))
+        
+        result = radiolist_dialog(
+            title="",
+            text="Select a remote feature:",
+            values=values,
+            style=PT_DARK_STYLE,
+        ).run()
+        
+        if result and result != "back":
+            self.execute_feature("remote", result)
     
     # ===== PROFILE MANAGEMENT =====
     
@@ -565,159 +644,24 @@ class TUIEngine:
     # ===== FILE TRANSFER =====
     
     def show_transfer(self):
-        """File transfer operations."""
-        self.clear_screen()
-        
-        self.console.print()
-        title = Text("File Transfer", style="primary")
-        self.console.print(Panel(title, border_style="border", padding=(0, 2)))
-        self.console.print()
-        
-        result = radiolist_dialog(
-            title="",
-            text="Choose transfer type:",
-            values=[
-                ("upload", "⬆️  Upload to Remote"),
-                ("download", "⬇️  Download from Remote"),
-                ("sync", "🔄  Sync Directories"),
-                ("back", "⬅️  Back"),
-            ],
-            style=PT_DARK_STYLE,
-        ).run()
-        
-        if result == "upload":
-            self.upload_file()
-        elif result == "download":
-            self.download_file()
-        elif result == "sync":
-            self.console.print("\n[yellow]Directory sync coming soon![/yellow]\n")
-            Prompt.ask("Press Enter to continue")
-    
-    def upload_file(self):
-        """Upload file with animated progress."""
-        self.clear_screen()
-        
-        self.console.print()
-        title = Text("Upload File", style="primary")
-        self.console.print(Panel(title, border_style="border", padding=(0, 2)))
-        self.console.print()
-        
-        try:
-            with self.console.status("[primary]Loading profiles...", spinner="dots"):
-                time.sleep(0.2)
-                profiles = self.config_mgr.list_profiles()
-            
-            if not profiles:
-                self.console.print(Panel(
-                    "[warning]⚠️  No profiles found[/warning]",
-                    border_style="warning",
-                    padding=(1, 2)
-                ))
-                self.console.print()
+        """File transfer operations - redirect to local file_transfer feature."""
+        # Use the dedicated file_transfer module from local features
+        if "file_transfer" in self.local_features:
+            feature_module = self.local_features.get("file_transfer")
+            if feature_module and hasattr(feature_module, 'run'):
+                try:
+                    feature_module.run()
+                except Exception as e:
+                    self.console.print(f"[error]✗ Error in file transfer: {e}[/error]\n")
+                    Prompt.ask("[dim]Press Enter to continue[/dim]")
+            else:
+                self.console.print("[error]✗ File transfer module not properly configured[/error]\n")
                 Prompt.ask("[dim]Press Enter to continue[/dim]")
-                return
-            
-            # Select profile with icons
-            values = [(p['name'], f"📡  {p['name']}  [dim]→[/dim]  {p['host']}") for p in profiles]
-            values.append(("cancel", "❌  Cancel"))
-            
-            profile_name = radiolist_dialog(
-                title="",
-                text="Select destination:",
-                values=values,
-                style=PT_DARK_STYLE,
-            ).run()
-            
-            if profile_name == "cancel" or not profile_name:
-                return
-            
-            local_path = Prompt.ask("[primary]📄 Local file path[/primary]")
-            remote_path = Prompt.ask("[primary]📁 Remote destination[/primary]")
-            
-            # Animated upload
-            self.console.print()
-            with Progress(
-                SpinnerColumn(spinner_name="dots"),
-                TextColumn("[primary]{task.description}"),
-                BarColumn(complete_style="success", finished_style="success"),
-                TextColumn("[primary]{task.percentage:>3.0f}%"),
-                console=self.console
-            ) as progress:
-                task = progress.add_task(f"Uploading {Path(local_path).name}...", total=100)
-                
-                connection = self.conn_mgr.connect(profile_name)
-                transfer = FileTransfer(connection.client)
-                
-                # Simulate progress (replace with actual transfer progress)
-                for i in range(100):
-                    progress.update(task, advance=1)
-                    time.sleep(0.02)
-                
-                transfer.upload(local_path, remote_path)
-                connection.disconnect()
-            
-            self.console.print()
-            self.console.print(Panel(
-                "[success]✓ Upload completed successfully![/success]",
-                border_style="success",
-                padding=(0, 2)
-            ))
-            self.console.print()
-            
-        except Exception as e:
-            self.console.print()
-            self.console.print(Panel(
-                f"[error]✗ Upload failed[/error]\n\n[dim]{e}[/dim]",
-                border_style="error",
-                padding=(1, 2)
-            ))
-            self.console.print()
-        
-        Prompt.ask("[dim]Press Enter to continue[/dim]")
-    
-    def download_file(self):
-        """Download file from remote server."""
-        self.console.clear()
-        self.console.print("\n[bold cyan]Download File[/bold cyan]\n")
-        
-        try:
-            profiles = self.config_mgr.list_profiles()
-            
-            if not profiles:
-                self.console.print("[yellow]No profiles found.[/yellow]\n")
-                Prompt.ask("Press Enter to continue")
-                return
-            
-            # Select profile
-            values = [(p['name'], f"{p['name']} ({p['host']})") for p in profiles]
-            values.append(("cancel", "← Cancel"))
-            
-            profile_name = radiolist_dialog(
-                title="",
-                text="Select source:",
-                values=values,
-            ).run()
-            
-            if profile_name == "cancel" or not profile_name:
-                return
-            
-            remote_path = Prompt.ask("[cyan]Remote file path[/cyan]")
-            local_path = Prompt.ask("[cyan]Local destination path[/cyan]")
-            
-            self.console.print(f"\n[cyan]Downloading {remote_path}...[/cyan]\n")
-            
-            connection = self.conn_mgr.connect(profile_name)
-            transfer = FileTransfer(connection.client)
-            transfer.download(remote_path, local_path)
-            
-            self.console.print("[green]✓ Download completed![/green]\n")
-            connection.disconnect()
-            
-        except Exception as e:
-            self.console.print(f"[red]Error: {e}[/red]\n")
-        
-        Prompt.ask("Press Enter to continue")
-    
+        else:
+            # Fallback if module not loaded
+            self.console.print("[error]✗ File transfer feature not available[/error]\n")
+            Prompt.ask("[dim]Press Enter to continue[/dim]")
+
     # ===== SESSION MANAGEMENT =====
     
     def show_sessions(self):
@@ -814,8 +758,8 @@ class TUIEngine:
         try:
             self.console.print("[cyan]Scanning network for SSH devices...[/cyan]\n")
             
-            discovery = DeviceDiscovery()
-            devices = discovery.scan()
+            discovery = DeviceDiscovery(self.config_mgr)
+            devices = discovery.scan_network()
             
             if not devices:
                 self.console.print("[yellow]No devices found.[/yellow]\n")
@@ -881,6 +825,7 @@ class TUIEngine:
         feature_icons = {
             "system_monitoring": "📊",
             "file_management": "📁",
+            "file_transfer": "📤",
             "network_tools": "🌐",
             "security_tools": "🔒",
             "automation": "⚙️"
