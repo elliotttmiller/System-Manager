@@ -35,7 +35,7 @@
 
 - [Security](#-security)
 
-- [Troubleshooting](#-troubleshooting)```bash
+- [Troubleshooting](#-troubleshooting)
 
 cd System-Manager
 
