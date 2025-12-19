@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 from typing import Optional
 from rich.console import Console
-from rich.prompt import Prompt
+from rich.prompt import Prompt, IntPrompt
 from rich.table import Table
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
@@ -20,8 +20,6 @@ from rich.align import Align
 from rich.text import Text
 from rich.theme import Theme
 from rich.style import Style
-from prompt_toolkit.shortcuts import radiolist_dialog
-from prompt_toolkit.styles import Style as PTStyle
 import importlib
 import importlib.util
 import os
@@ -54,35 +52,48 @@ DARK_THEME = Theme({
     "border": "bright_black",
 })
 
-# Comprehensive Prompt Toolkit dark theme style
-PT_DARK_STYLE = PTStyle.from_dict({
-    # Dialog window
-    'dialog': 'bg:#1a1a1a #00d7ff',
-    'dialog.body': 'bg:#1a1a1a #e0e0e0',
-    'dialog frame.label': 'bg:#1a1a1a #00d7ff bold',
-    'dialog shadow': 'bg:#000000',
+
+def show_menu(console: Console, title: str, options: list, show_instructions: bool = True) -> Optional[str]:
+    """
+    Display a keyboard-friendly numbered menu.
     
-    # Radio list (menu items)
-    'radiolist': 'bg:#1a1a1a #e0e0e0',
-    'radiolist focused': 'bg:#00d7ff #000000 bold',
-    'radiolist selected': 'bg:#1a1a1a #00ff87',
+    Args:
+        console: Rich Console instance
+        title: Menu title/prompt text
+        options: List of tuples (value, display_text)
+        show_instructions: Whether to show keyboard instructions
+        
+    Returns:
+        Selected option value or None if cancelled
+    """
+    if show_instructions:
+        console.print("[dim]Navigation: Type number and press Enter • Press Ctrl+C to cancel[/dim]\n")
     
-    # Text and labels
-    'text': 'bg:#1a1a1a #e0e0e0',
-    'label': 'bg:#1a1a1a #00d7ff',
+    console.print(f"[bold cyan]{title}[/bold cyan]\n")
     
-    # Button elements
-    'button': 'bg:#1a1a1a #00d7ff',
-    'button.focused': 'bg:#00d7ff #000000 bold',
+    # Display numbered options
+    for idx, (value, display) in enumerate(options, 1):
+        console.print(f"  [primary]{idx}.[/primary] {display}")
     
-    # Input fields
-    'text-area': 'bg:#1a1a1a #e0e0e0',
-    'text-area.prompt': 'bg:#1a1a1a #00d7ff',
+    console.print()
     
-    # Borders and frames
-    'frame.border': 'bg:#1a1a1a #00d7ff',
-    'frame.label': 'bg:#1a1a1a #00d7ff bold',
-})
+    # Get user selection
+    while True:
+        try:
+            choice = IntPrompt.ask(
+                "[cyan]Select option[/cyan]",
+                console=console,
+                default=1
+            )
+            
+            if 1 <= choice <= len(options):
+                return options[choice - 1][0]
+            else:
+                console.print(f"[warning]Please enter a number between 1 and {len(options)}[/warning]")
+        except (KeyboardInterrupt, EOFError):
+            return None
+        except Exception:
+            console.print("[warning]Invalid input. Please enter a number.[/warning]")
 
 
 class TUIEngine:
@@ -211,11 +222,11 @@ class TUIEngine:
         ))
         self.console.print()
         
-        # Show menu with custom style
-        return radiolist_dialog(
-            title="",
-            text="Navigate with arrow keys • Press Enter to select",
-            values=[
+        # Show keyboard-friendly menu
+        return show_menu(
+            self.console,
+            "Main Menu",
+            [
                 ("connections", "🔌  Connect to Device"),
                 ("profiles", "📋  Manage Profiles"),
                 ("setup", "⚙️   Setup New Device"),
@@ -224,9 +235,8 @@ class TUIEngine:
                 ("sessions", "💻  Active Sessions"),
                 ("advanced", "🔧  Advanced Features"),
                 ("exit", "🚪  Exit"),
-            ],
-            style=PT_DARK_STYLE,
-        ).run()
+            ]
+        )
     
     def handle_menu_choice(self, choice: Optional[str]):
         """Route menu choice to appropriate handler."""
@@ -287,12 +297,12 @@ class TUIEngine:
             
             values.append(("back", "⬅️  Back to Main Menu"))
             
-            result = radiolist_dialog(
-                title="",
-                text="Select a device to connect:",
-                values=values,
-                style=PT_DARK_STYLE,
-            ).run()
+            result = show_menu(
+                self.console,
+                "Select a device to connect:",
+                values,
+                show_instructions=False
+            )
             
             if result and result != "back":
                 self.connect_to_device(result)
@@ -351,18 +361,18 @@ class TUIEngine:
             self.console.print(Panel(title, border_style="border", padding=(0, 2)))
             self.console.print()
             
-            result = radiolist_dialog(
-                title="",
-                text="What would you like to do?",
-                values=[
+            result = show_menu(
+                self.console,
+                "What would you like to do?",
+                [
                     ("remote_features", "🌐  Remote Device Features"),
                     ("file_transfer", "📁  File Transfer"),
                     ("shell", "💻  Interactive Shell"),
                     ("monitoring", "📊  Real-time Monitoring"),
                     ("disconnect", "🚪  Disconnect"),
                 ],
-                style=PT_DARK_STYLE,
-            ).run()
+                show_instructions=False
+            )
             
             if result == "remote_features":
                 self.show_remote_features_for_session(session)
@@ -413,12 +423,12 @@ class TUIEngine:
         
         values.append(("back", "⬅️  Back to Session Menu"))
         
-        result = radiolist_dialog(
-            title="",
-            text="Select a remote feature:",
-            values=values,
-            style=PT_DARK_STYLE,
-        ).run()
+        result = show_menu(
+            self.console,
+            "Select a remote feature:",
+            values,
+            show_instructions=False
+        )
         
         if result and result != "back":
             self.execute_feature("remote", result)
@@ -476,10 +486,10 @@ class TUIEngine:
                     self.console.print()
                 
                 # Profile actions with icons
-                result = radiolist_dialog(
-                    title="",
-                    text="Profile actions:",
-                    values=[
+                result = show_menu(
+                self.console,
+                "Profile actions:",
+                [
                         ("manager", "🎛️   Profile Manager (Advanced)"),
                         ("add", "➕  Add New Profile"),
                         ("edit", "✏️   Edit Profile"),
@@ -490,8 +500,8 @@ class TUIEngine:
                         ("import", "📥  Import Profile"),
                         ("back", "⬅️  Back"),
                     ],
-                    style=PT_DARK_STYLE,
-                ).run()
+                show_instructions=False
+            )
                 
                 if result == "manager":
                     self.launch_profile_manager()
@@ -579,12 +589,22 @@ class TUIEngine:
         values = [(p['name'], f"✅  {p['name']}") for p in profiles]
         values.append(("cancel", "❌  Cancel"))
         
-        result = radiolist_dialog(
-            title="",
-            text="Select profile to validate:",
-            values=values,
-            style=PT_DARK_STYLE,
-        ).run()
+        result = show_menu(
+
+        
+            self.console,
+
+        
+            "Select profile to validate:",
+
+        
+            values,
+
+        
+            show_instructions=False
+
+        
+        )
         
         if result and result != "cancel":
             try:
@@ -610,12 +630,22 @@ class TUIEngine:
         values = [(p['name'], f"🏥  {p['name']}") for p in profiles]
         values.append(("cancel", "❌  Cancel"))
         
-        result = radiolist_dialog(
-            title="",
-            text="Select profile to check:",
-            values=values,
-            style=PT_DARK_STYLE,
-        ).run()
+        result = show_menu(
+
+        
+            self.console,
+
+        
+            "Select profile to check:",
+
+        
+            values,
+
+        
+            show_instructions=False
+
+        
+        )
         
         if result and result != "cancel":
             try:
@@ -643,12 +673,22 @@ class TUIEngine:
         values = [(p['name'], f"�  {p['name']}") for p in profiles]
         values.append(("cancel", "❌  Cancel"))
         
-        result = radiolist_dialog(
-            title="",
-            text="Select profile to export:",
-            values=values,
-            style=PT_DARK_STYLE,
-        ).run()
+        result = show_menu(
+
+        
+            self.console,
+
+        
+            "Select profile to export:",
+
+        
+            values,
+
+        
+            show_instructions=False
+
+        
+        )
         
         if result and result != "cancel":
             try:
@@ -702,12 +742,22 @@ class TUIEngine:
         values = [(p['name'], f"🗑️  {p['name']}") for p in profiles]
         values.append(("cancel", "❌  Cancel"))
         
-        result = radiolist_dialog(
-            title="",
-            text="Select profile to delete:",
-            values=values,
-            style=PT_DARK_STYLE,
-        ).run()
+        result = show_menu(
+
+        
+            self.console,
+
+        
+            "Select profile to delete:",
+
+        
+            values,
+
+        
+            show_instructions=False
+
+        
+        )
         
         if result and result != "cancel":
             try:
@@ -727,10 +777,10 @@ class TUIEngine:
         self.console.print(Panel(title, border_style="border", padding=(0, 2)))
         self.console.print()
         
-        result = radiolist_dialog(
-            title="",
-            text="Choose setup method:",
-            values=[
+        result = show_menu(
+                self.console,
+                "Choose setup method:",
+                [
                 ("auto_desktop", "🖥️   Desktop Server Setup (Run on Desktop)"),
                 ("auto_laptop", "💻  Laptop Client Import (Run on Laptop)"),
                 ("auto", "🤖  Legacy Auto Setup"),
@@ -739,8 +789,8 @@ class TUIEngine:
                 ("server", "🖥️   SSH Server Config"),
                 ("back", "⬅️  Back"),
             ],
-            style=PT_DARK_STYLE,
-        ).run()
+                show_instructions=False
+            )
         
         if result == "auto_desktop":
             self.run_automated_desktop_setup()
@@ -917,12 +967,22 @@ class TUIEngine:
                 values = [(p, p) for p in profiles]
                 values.append(("cancel", "❌  Cancel"))
 
-                choice = radiolist_dialog(
-                    title="Connect to Profile",
-                    text="Select a profile to connect and open Server Actions:",
-                    values=values,
-                    style=PT_DARK_STYLE,
-                ).run()
+                choice = show_menu(
+
+
+                    self.console,
+
+
+                    "Select a profile to connect and open Server Actions:",
+
+
+                    values,
+
+
+                    show_instructions=False
+
+
+                )
 
                 if not choice or choice == "cancel":
                     Prompt.ask("[dim]Press Enter to continue[/dim]")
@@ -1031,10 +1091,10 @@ class TUIEngine:
         self.console.print(Panel(title, border_style="border", padding=(0, 2)))
         self.console.print()
         
-        result = radiolist_dialog(
-            title="",
-            text="Choose feature:",
-            values=[
+        result = show_menu(
+                self.console,
+                "Choose feature:",
+                [
                 ("local", "💻  Local Features (Laptop)"),
                 ("remote", "🌐  Remote Features (Connected Device)"),
                 ("monitoring", "📊  Connection Monitoring"),
@@ -1044,8 +1104,8 @@ class TUIEngine:
                 ("script_execution", "📜  Seamless Script Execution"),
                 ("back", "⬅️  Back"),
             ],
-            style=PT_DARK_STYLE,
-        ).run()
+                show_instructions=False
+            )
         
         if result == "local":
             self.show_local_features_menu()
@@ -1212,12 +1272,22 @@ class TUIEngine:
         
         values.append(("back", "⬅️  Back to Advanced Menu"))
         
-        result = radiolist_dialog(
-            title="",
-            text="Select a local feature to use:",
-            values=values,
-            style=PT_DARK_STYLE,
-        ).run()
+        result = show_menu(
+
+        
+            self.console,
+
+        
+            "Select a local feature to use:",
+
+        
+            values,
+
+        
+            show_instructions=False
+
+        
+        )
         
         if result and result != "back":
             self.execute_feature("local", result)
@@ -1249,12 +1319,22 @@ class TUIEngine:
         
         values.append(("back", "⬅️  Back to Advanced Menu"))
         
-        result = radiolist_dialog(
-            title="",
-            text="Select a remote feature to use:",
-            values=values,
-            style=PT_DARK_STYLE,
-        ).run()
+        result = show_menu(
+
+        
+            self.console,
+
+        
+            "Select a remote feature to use:",
+
+        
+            values,
+
+        
+            show_instructions=False
+
+        
+        )
         
         if result and result != "back":
             self.execute_feature("remote", result)
