@@ -10,6 +10,12 @@ from rich.table import Table
 from pathlib import Path
 from typing import Optional
 
+import sys
+from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from core.config_manager import ConfigManager
 from core.connection_manager import ConnectionManager
 from core.session_manager import SessionManager
@@ -356,8 +362,7 @@ def list_sessions():
 @cli.command()
 def version():
     """Display version information."""
-    from .. import __version__
-    console.print(f"[green]Personal SSH/SCP CLI System Manager v{__version__}[/green]")
+    console.print(f"[green]Personal SSH/SCP CLI System Manager v1.0.0[/green]")
 
 
 @cli.command()

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import base64
 
 
@@ -57,7 +57,7 @@ class ConfigManager:
     def _setup_encryption(self, master_password: str):
         """Setup encryption using master password."""
         salt = b'personal-ssh-cli-salt-v1'  # In production, use random salt stored securely
-        kdf = PBKDF2(
+        kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
             salt=salt,

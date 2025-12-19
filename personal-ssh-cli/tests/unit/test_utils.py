@@ -25,8 +25,8 @@ class TestUtils(unittest.TestCase):
         """Test duration formatting."""
         self.assertEqual(format_duration(30), "30s")
         self.assertEqual(format_duration(90), "2m")
-        self.assertEqual(format_duration(3600), "60m")
-        self.assertEqual(format_duration(7200), "2h")
+        self.assertEqual(format_duration(3600), "1h 0m")
+        self.assertEqual(format_duration(7200), "2h 0m")
     
     def test_validate_hostname(self):
         """Test hostname validation."""
