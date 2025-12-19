@@ -3,27 +3,22 @@
 """
 System Manager - Main Entry Point
 
-This is the primary launcher for the Personal SSH/SCP CLI System Manager.
-Run this script to start the CLI interface.
+Simple launcher that bootstraps and runs the TUI Engine or CLI.
 
 Usage:
-    python start.py [COMMAND] [OPTIONS]
+    python start.py              # Launch interactive TUI
+    python start.py [OPTIONS]    # Use CLI mode
     
 Examples:
+    python start.py
     python start.py --help
-    python start.py setup
-    python start.py setup-server
     python start.py connect my-desktop
-    python start.py list-profiles
 """
 
 import sys
 import os
 from pathlib import Path
 import codecs
-from core.cli_engine import main as cli_main
-import gui
-import traceback
 
 # Ensure UTF-8 encoding on Windows
 if sys.platform == 'win32':
@@ -46,30 +41,11 @@ else:
     sys.exit(1)
 
 
-def print_banner():
-    """Print application banner."""
-    banner = """
-╔══════════════════════════════════════════════════════════════════════╗
-║                  PERSONAL SSH/SCP SYSTEM MANAGER                     ║
-║                         Version 1.0.0                                ║
-╚══════════════════════════════════════════════════════════════════════╝
-"""
-    # Use simple ASCII if Unicode fails
-    try:
-        print(banner)
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        print("="*70)
-        print("      PERSONAL SSH/SCP SYSTEM MANAGER - Version 1.0.0")
-        print("="*70)
-
-
 def check_dependencies():
     """Check if required dependencies are installed."""
     missing_deps = []
     
-    # Map of package import names to pip package names
     required_packages = {
-        'click': 'click',
         'rich': 'rich',
         'paramiko': 'paramiko',
         'scp': 'scp',
@@ -88,49 +64,46 @@ def check_dependencies():
         print("\n⚠️  Missing required dependencies:")
         for dep in missing_deps:
             print(f"   - {dep}")
-        print("\nPlease install missing dependencies:")
-        print("   pip install -r requirements.txt")
-        print("   OR")
-        print("   pip install -e .")
+        print("\nPlease install: pip install -r requirements.txt")
         return False
     
     return True
 
 
 def main():
-    """Main entry point."""
-    # Check dependencies
+    """Main entry point - route to TUI or CLI."""
+    
+    # Check dependencies first
     if not check_dependencies():
         sys.exit(1)
     
     try:
-        # Check if command-line arguments provided
-        # If yes, use CLI mode; if no, use interactive GUI mode
+        # If command-line arguments provided, use CLI mode
         if len(sys.argv) > 1:
-            # Show banner for help command
-            if '--help' in sys.argv:
-                print_banner()
-            
-            # Run in CLI mode
+            from core.cli_engine import main as cli_main
             cli_main()
         else:
-            # No arguments - launch interactive GUI
-            gui.main()
-        
-    except ImportError as e:
-        print(f"\n❌ Error: Failed to import CLI engine: {e}")
-        print("\nTroubleshooting:")
-        print("1. Ensure all dependencies are installed: pip install -e .")
-        print("2. Check that you're in the correct directory")
-        print("3. Verify the 'personal-ssh-cli' directory exists")
-        sys.exit(1)
-        
+            # No arguments - launch TUI Engine
+            from interface.tui_engine import TUIEngine
+            
+            engine = TUIEngine()
+            engine.run()
+    
     except KeyboardInterrupt:
         print("\n\n⚠️  Interrupted by user")
         sys.exit(0)
-        
+    
+    except ImportError as e:
+        print(f"\n❌ Import error: {e}")
+        print("\nTroubleshooting:")
+        print("1. Ensure dependencies installed: pip install -e .")
+        print("2. Check you're in the correct directory")
+        print("3. Verify 'personal-ssh-cli' directory exists")
+        sys.exit(1)
+    
     except Exception as e:
         print(f"\n❌ Fatal error: {e}")
+        import traceback
         traceback.print_exc()
         sys.exit(1)
 
