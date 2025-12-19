@@ -1,0 +1,23 @@
+# Core SSH/SCP functionality
+paramiko>=3.3.1
+scp>=0.14.5
+
+# Terminal UI and formatting
+rich>=13.5.0
+prompt_toolkit>=3.0.39
+click>=8.1.7
+
+# Configuration management
+pyyaml>=6.0.1
+
+# Security and encryption
+cryptography>=41.0.4
+
+# System utilities
+psutil>=5.9.5
+
+# Tab completion support
+argcomplete>=3.1.2
+
+# Progress tracking
+tqdm>=4.66.1

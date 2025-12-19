@@ -1,0 +1,5 @@
+include README.md
+include LICENSE
+include requirements.txt
+recursive-include personal-ssh-cli/resources *
+recursive-include personal-ssh-cli/documentation *.md
