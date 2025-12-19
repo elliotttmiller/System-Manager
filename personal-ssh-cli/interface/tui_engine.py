@@ -480,20 +480,35 @@ class TUIEngine:
                     title="",
                     text="Profile actions:",
                     values=[
+                        ("manager", "🎛️   Profile Manager (Advanced)"),
                         ("add", "➕  Add New Profile"),
                         ("edit", "✏️   Edit Profile"),
                         ("delete", "🗑️   Delete Profile"),
+                        ("validate", "✅  Validate Connection"),
+                        ("health", "🏥  Health Check"),
+                        ("export", "📤  Export Profile"),
+                        ("import", "📥  Import Profile"),
                         ("back", "⬅️  Back"),
                     ],
                     style=PT_DARK_STYLE,
                 ).run()
                 
-                if result == "add":
+                if result == "manager":
+                    self.launch_profile_manager()
+                elif result == "add":
                     self.add_profile()
                 elif result == "edit":
                     self.edit_profile()
                 elif result == "delete":
                     self.delete_profile()
+                elif result == "validate":
+                    self.validate_profile()
+                elif result == "health":
+                    self.check_profile_health()
+                elif result == "export":
+                    self.export_profile()
+                elif result == "import":
+                    self.import_profile()
                 elif result == "back" or result is None:
                     break
                     
@@ -539,6 +554,142 @@ class TUIEngine:
         self.console.print("[yellow]Edit functionality coming soon![/yellow]\n")
         Prompt.ask("Press Enter to continue")
     
+    def launch_profile_manager(self):
+        """Launch advanced Profile Manager with LOCAL/REMOTE routing."""
+        try:
+            from features.profile_manager import run_profile_manager
+            run_profile_manager(self.config_mgr, self.conn_mgr)
+        except Exception as e:
+            self.console.print(f"[red]Error launching profile manager: {e}[/red]\n")
+            import traceback
+            traceback.print_exc()
+            Prompt.ask("Press Enter to continue")
+    
+    def validate_profile(self):
+        """Validate profile connection using REMOTE libraries."""
+        self.console.clear()
+        self.console.print("\n[bold cyan]Validate Profile Connection[/bold cyan]\n")
+        
+        profiles = self.config_mgr.list_profiles()
+        if not profiles:
+            self.console.print("[yellow]No profiles available.[/yellow]\n")
+            Prompt.ask("Press Enter to continue")
+            return
+        
+        values = [(p['name'], f"✅  {p['name']}") for p in profiles]
+        values.append(("cancel", "❌  Cancel"))
+        
+        result = radiolist_dialog(
+            title="",
+            text="Select profile to validate:",
+            values=values,
+            style=PT_DARK_STYLE,
+        ).run()
+        
+        if result and result != "cancel":
+            try:
+                from features.profile_manager import ProfileManager
+                pm = ProfileManager(self.config_mgr, self.conn_mgr)
+                pm.validate_profile_connection(result)
+            except Exception as e:
+                self.console.print(f"[red]Error: {e}[/red]\n")
+        
+        Prompt.ask("\n[dim]Press Enter to continue[/dim]")
+    
+    def check_profile_health(self):
+        """Run comprehensive health check on profile."""
+        self.console.clear()
+        self.console.print("\n[bold cyan]Profile Health Check[/bold cyan]\n")
+        
+        profiles = self.config_mgr.list_profiles()
+        if not profiles:
+            self.console.print("[yellow]No profiles available.[/yellow]\n")
+            Prompt.ask("Press Enter to continue")
+            return
+        
+        values = [(p['name'], f"🏥  {p['name']}") for p in profiles]
+        values.append(("cancel", "❌  Cancel"))
+        
+        result = radiolist_dialog(
+            title="",
+            text="Select profile to check:",
+            values=values,
+            style=PT_DARK_STYLE,
+        ).run()
+        
+        if result and result != "cancel":
+            try:
+                from features.profile_manager import ProfileManager
+                pm = ProfileManager(self.config_mgr, self.conn_mgr)
+                pm.check_profile_health(result)
+            except Exception as e:
+                self.console.print(f"[red]Error: {e}[/red]\n")
+                import traceback
+                traceback.print_exc()
+        
+        Prompt.ask("\n[dim]Press Enter to continue[/dim]")
+    
+    def export_profile(self):
+        """Export profile to file."""
+        self.console.clear()
+        self.console.print("\n[bold cyan]Export Profile[/bold cyan]\n")
+        
+        profiles = self.config_mgr.list_profiles()
+        if not profiles:
+            self.console.print("[yellow]No profiles available.[/yellow]\n")
+            Prompt.ask("Press Enter to continue")
+            return
+        
+        values = [(p['name'], f"�  {p['name']}") for p in profiles]
+        values.append(("cancel", "❌  Cancel"))
+        
+        result = radiolist_dialog(
+            title="",
+            text="Select profile to export:",
+            values=values,
+            style=PT_DARK_STYLE,
+        ).run()
+        
+        if result and result != "cancel":
+            try:
+                from features.profile_manager import ProfileManager
+                pm = ProfileManager(self.config_mgr, self.conn_mgr)
+                export_result = pm.export_profile(result)
+                
+                if export_result['success']:
+                    self.console.print(f"\n[green]✓ Profile exported successfully![/green]")
+                    self.console.print(f"[info]Location: {export_result['export_path']}[/info]\n")
+                else:
+                    self.console.print(f"\n[red]✗ Export failed: {export_result['error']}[/red]\n")
+            except Exception as e:
+                self.console.print(f"[red]Error: {e}[/red]\n")
+        
+        Prompt.ask("\n[dim]Press Enter to continue[/dim]")
+    
+    def import_profile(self):
+        """Import profile from file."""
+        self.console.clear()
+        self.console.print("\n[bold cyan]Import Profile[/bold cyan]\n")
+        
+        import_path = Prompt.ask("[cyan]Enter path to profile file[/cyan]")
+        
+        if not import_path:
+            self.console.print("[yellow]Import cancelled.[/yellow]\n")
+            Prompt.ask("Press Enter to continue")
+            return
+        
+        try:
+            from features.profile_manager import ProfileManager
+            pm = ProfileManager(self.config_mgr, self.conn_mgr)
+            result = pm.import_profile(import_path)
+            
+            if not result['success']:
+                self.console.print(f"\n[red]✗ Import failed: {result['error']}[/red]\n")
+        except Exception as e:
+            self.console.print(f"[red]Error: {e}[/red]\n")
+        
+        Prompt.ask("\n[dim]Press Enter to continue[/dim]")
+    
     def delete_profile(self):
         """Delete existing profile."""
         profiles = self.config_mgr.list_profiles()
@@ -564,10 +715,8 @@ class TUIEngine:
                 self.console.print(f"\n[green]✓ Profile '{result}' deleted.[/green]\n")
             except Exception as e:
                 self.console.print(f"[red]Error: {e}[/red]\n")
-            
-            Prompt.ask("Press Enter to continue")
-    
-    # ===== SETUP & CONFIGURATION =====
+        
+        Prompt.ask("Press Enter to continue")    # ===== SETUP & CONFIGURATION =====
     
     def show_setup(self):
         """Setup new device with various methods."""
