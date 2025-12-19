@@ -219,6 +219,7 @@ class TUIEngine:
                 ("connections", "🔌  Connect to Device"),
                 ("profiles", "📋  Manage Profiles"),
                 ("setup", "⚙️   Setup New Device"),
+                ("server_actions", "🖥️   Server Actions"),
                 ("transfer", "📁  File Transfer"),
                 ("sessions", "💻  Active Sessions"),
                 ("advanced", "🔧  Advanced Features"),
@@ -235,6 +236,8 @@ class TUIEngine:
             self.show_profiles()
         elif choice == "setup":
             self.show_setup()
+        elif choice == "server_actions":
+            self.show_server_actions()
         elif choice == "transfer":
             self.show_transfer()
         elif choice == "sessions":
@@ -660,6 +663,46 @@ class TUIEngine:
         else:
             # Fallback if module not loaded
             self.console.print("[error]✗ File transfer feature not available[/error]\n")
+            Prompt.ask("[dim]Press Enter to continue[/dim]")
+    
+    # ===== SERVER ACTIONS =====
+    
+    def show_server_actions(self):
+        """Remote server actions - manage SSH/SSHD server on remote desktop."""
+        self.console.clear()
+        self.console.print("\n[bold cyan]Server Actions[/bold cyan]\n")
+        
+        # Check if we have an active connection
+        if not self.conn_mgr or not self.conn_mgr.ssh_client:
+            self.console.print(Panel(
+                "[yellow]⚠️  No active connection[/yellow]\n\n"
+                "[info]Please connect to a device first:\n"
+                "  1. Go to 'Connect to Device' from main menu\n"
+                "  2. Select or create a connection\n"
+                "  3. Return here to manage the remote server[/info]",
+                border_style="yellow",
+                padding=(1, 2)
+            ))
+            self.console.print()
+            Prompt.ask("[dim]Press Enter to continue[/dim]")
+            return
+        
+        # Use the remote_server_actions module
+        if "remote_server_actions" in self.remote_features:
+            feature_module = self.remote_features.get("remote_server_actions")
+            if feature_module and hasattr(feature_module, 'run'):
+                try:
+                    feature_module.run(self.conn_mgr)
+                except Exception as e:
+                    self.console.print(f"[error]✗ Error in server actions: {e}[/error]\n")
+                    Prompt.ask("[dim]Press Enter to continue[/dim]")
+            else:
+                self.console.print("[error]✗ Server actions module not properly configured[/error]\n")
+                Prompt.ask("[dim]Press Enter to continue[/dim]")
+        else:
+            # Fallback if module not loaded
+            self.console.print("[error]✗ Server actions feature not available[/error]\n")
+            self.console.print("[info]Module should be at: personal-ssh-cli/remote/remote_server_actions.py[/info]\n")
             Prompt.ask("[dim]Press Enter to continue[/dim]")
 
     # ===== SESSION MANAGEMENT =====

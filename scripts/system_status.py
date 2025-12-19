@@ -51,14 +51,16 @@ def check_features():
     print("Main Menu → Connect → Device Session → Remote Features")
     print("Main Menu → Advanced → Local Features")
     print("Main Menu → File Transfer → Local file_transfer module")
+    print("Main Menu → Server Actions → Remote SSH/SSHD Management")
     print("Local → Service Monitor → SSH Server Management")
     print("Remote → Service Monitor → Remote Service Management")
     
-    print("\n=== NEW SERVICE MONITORING FEATURES ===")
+    print("\n=== NEW FEATURES ===")
     
     # Check for service monitor files
     local_service_monitor = os.path.join(local_dir, 'service_monitor.py')
     remote_service_monitor = os.path.join(remote_dir, 'remote_service_monitor.py')
+    remote_server_actions = os.path.join(remote_dir, 'remote_server_actions.py')
     
     if os.path.exists(local_service_monitor):
         print("✓ Local Service Monitor integrated")
@@ -79,6 +81,18 @@ def check_features():
         print("  - System information")
     else:
         print("❌ Remote Service Monitor not found")
+    
+    if os.path.exists(remote_server_actions):
+        print("\n✓ Remote Server Actions integrated [MAIN MENU]")
+        print("  - Start SSH/SSHD server")
+        print("  - Stop SSH/SSHD server")
+        print("  - Restart SSH/SSHD server")
+        print("  - Enable/disable autostart")
+        print("  - View SSH configuration")
+        print("  - View SSH logs")
+        print("  - Comprehensive status reports")
+    else:
+        print("❌ Remote Server Actions not found")
     
     print("\n=== SYSTEM STATUS ===")
     print("✅ ALL SYSTEMS OPERATIONAL!")
