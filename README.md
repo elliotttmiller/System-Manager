@@ -60,29 +60,49 @@
 
 ## 🚀 Quick Start
 
-### Add a Device Profile
+### Automated Desktop-Laptop Pairing (Recommended)
+
+**New! Automated setup for seamless Desktop↔Laptop connectivity.**
+
+1. **On Desktop** (Server):
+   ```bash
+   python start.py
+   → Setup New Device → Desktop Server Setup
+   ```
+
+2. **Transfer package to Laptop** (via USB/network/cloud)
+
+3. **On Laptop** (Client):
+   ```bash
+   python start.py
+   → Setup New Device → Laptop Client Import
+   ```
+
+4. **Connect from Laptop**:
+   ```bash
+   python start.py
+   → Connect to Device → Select your desktop
+   ```
+
+📖 **[Complete Pairing Guide](QUICKSTART_PAIRING.md)** | **[Technical Details](AUTOMATED_PAIRING.md)**
+
+### Manual Setup (Alternative)
+
 ```bash
+# Add a device profile
 pssh add-profile home-server --hostname 192.168.1.100 --username myuser
-```
 
-### Connect to the Device
-```bash
+# Connect to the device
 pssh connect home-server
-```
 
-### Execute a Command
-```bash
+# Execute a command
 pssh exec conn_1 "ls -la"
-```
 
-### Transfer Files
-```bash
+# Transfer files
 pssh upload conn_1 /local/file.txt /remote/file.txt
 pssh download conn_1 /remote/log.txt /local/log.txt
-```
 
-### List Connections and Sessions
-```bash
+# List connections and sessions
 pssh list-connections
 pssh list-sessions
 ```

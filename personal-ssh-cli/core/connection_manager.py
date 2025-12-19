@@ -175,21 +175,23 @@ class ConnectionManager:
         
         return connection_id
     
-    def connect(self, connection_id: str, timeout: int = 30) -> bool:
-        """Establish SSH connection.
+    def connect(self, connection_id: str, timeout: int = 30) -> Optional[SSHConnection]:
+        """Establish SSH connection and return the connection object.
         
         Args:
             connection_id: Connection identifier
             timeout: Connection timeout in seconds
             
         Returns:
-            True if connection successful
+            SSHConnection object if connection is successful
         """
         connection = self.connections.get(connection_id)
         if not connection:
             raise ValueError(f"Connection '{connection_id}' not found")
         
-        return connection.connect(timeout=timeout)
+        if connection.connect(timeout=timeout):
+            return connection
+        return None
     
     def disconnect(self, connection_id: str):
         """Close SSH connection.

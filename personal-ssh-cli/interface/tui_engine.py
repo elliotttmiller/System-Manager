@@ -582,16 +582,22 @@ class TUIEngine:
             title="",
             text="Choose setup method:",
             values=[
-                ("auto", "🤖  Auto Setup (Detect & Configure)"),
+                ("auto_desktop", "🖥️   Desktop Server Setup (Run on Desktop)"),
+                ("auto_laptop", "💻  Laptop Client Import (Run on Laptop)"),
+                ("auto", "🤖  Legacy Auto Setup"),
                 ("manual", "✍️   Manual Configuration"),
                 ("import", "📥  Import SSH Config"),
-                ("server", "🖥️   Setup SSH Server"),
+                ("server", "🖥️   SSH Server Config"),
                 ("back", "⬅️  Back"),
             ],
             style=PT_DARK_STYLE,
         ).run()
         
-        if result == "auto":
+        if result == "auto_desktop":
+            self.run_automated_desktop_setup()
+        elif result == "auto_laptop":
+            self.run_automated_laptop_import()
+        elif result == "auto":
             self.run_auto_setup()
         elif result == "manual":
             self.add_profile()
@@ -600,10 +606,81 @@ class TUIEngine:
         elif result == "server":
             self.setup_ssh_server()
     
-    def run_auto_setup(self):
-        """Run automated device setup."""
+    def run_automated_desktop_setup(self):
+        """Run automated desktop server setup using LOCAL libraries."""
+        self.clear_screen()
         try:
-            self.console.print("\n[cyan]Starting auto-setup...[/cyan]\n")
+            from features.automated_pairing import AutomatedPairing
+            
+            self.console.print("\n[bold cyan]Automated Desktop Server Setup[/bold cyan]\n")
+            self.console.print("[info]This will configure this device as an SSH server using LOCAL system tools.[/info]\n")
+            
+            confirm = Prompt.ask("[yellow]Proceed with desktop setup?[/yellow] (y/n)", default="y")
+            if confirm.lower() != 'y':
+                return
+            
+            pairing = AutomatedPairing(self.config_mgr)
+            result = pairing.setup_desktop_server()
+            
+            if result.get('success'):
+                pairing.display_summary(result)
+            else:
+                self.console.print(f"[red]✗ Setup failed: {result.get('error')}[/red]\n")
+                
+        except Exception as e:
+            self.console.print(f"[red]Error: {e}[/red]\n")
+            import traceback
+            traceback.print_exc()
+        
+        Prompt.ask("\n[dim]Press Enter to continue[/dim]")
+    
+    def run_automated_laptop_import(self):
+        """Run automated laptop client import using LOCAL libraries."""
+        self.clear_screen()
+        try:
+            from features.automated_pairing import AutomatedPairing
+            
+            self.console.print("\n[bold cyan]Automated Laptop Client Import[/bold cyan]\n")
+            self.console.print("[info]This will import a profile from your desktop using LOCAL client tools.[/info]\n")
+            
+            package_path = Prompt.ask("[cyan]Enter path to transfer package[/cyan]")
+            
+            if not package_path:
+                self.console.print("[yellow]Import cancelled.[/yellow]\n")
+                return
+            
+            pairing = AutomatedPairing(self.config_mgr)
+            result = pairing.import_on_laptop(package_path)
+            
+            if result.get('success'):
+                self.console.print("\n[green]✓ Import successful![/green]\n")
+                
+                # Offer to verify connection
+                verify = Prompt.ask("[yellow]Verify connection now?[/yellow] (y/n)", default="y")
+                if verify.lower() == 'y':
+                    verify_result = pairing.verify_connection(
+                        result['profile']['name'],
+                        self.conn_mgr
+                    )
+                    
+                    if verify_result.get('success'):
+                        self.console.print("[green]✓ Connection verified![/green]\n")
+                    else:
+                        self.console.print(f"[yellow]⚠️  Verification issue: {verify_result.get('error')}[/yellow]\n")
+            else:
+                self.console.print(f"[red]✗ Import failed: {result.get('error')}[/red]\n")
+                
+        except Exception as e:
+            self.console.print(f"[red]Error: {e}[/red]\n")
+            import traceback
+            traceback.print_exc()
+        
+        Prompt.ask("\n[dim]Press Enter to continue[/dim]")
+    
+    def run_auto_setup(self):
+        """Run legacy automated device setup."""
+        try:
+            self.console.print("\n[cyan]Starting legacy auto-setup...[/cyan]\n")
             
             auto_setup = AutoSetup()
             auto_setup.run_interactive_setup()
@@ -673,7 +750,10 @@ class TUIEngine:
         self.console.print("\n[bold cyan]Server Actions[/bold cyan]\n")
         
         # Check if we have an active connection
-        if not self.conn_mgr or not self.conn_mgr.ssh_client:
+        connections = self.conn_mgr.list_connections() if self.conn_mgr else []
+        active_connections = [conn for conn in connections if conn.get('connected')]
+        
+        if not self.conn_mgr or not active_connections:
             self.console.print(Panel(
                 "[yellow]⚠️  No active connection[/yellow]\n\n"
                 "[info]Please connect to a device first:\n"

@@ -522,17 +522,38 @@ def run(connection_manager=None):
     """Entry point for remote server actions"""
     server = RemoteServerActions(connection_manager)
     
-    if not connection_manager or not connection_manager.ssh_client:
+    if not connection_manager:
+        console.print("[red]Error: No connection manager available[/red]")
+        console.print("[yellow]Please connect to a device first[/yellow]")
+        console.input("\n[dim]Press Enter to continue...[/dim]")
+        return
+    
+    # Get the first active connection
+    connections = connection_manager.list_connections()
+    active_connections = [conn for conn in connections if conn.get('connected')]
+    
+    if not active_connections:
         console.print("[red]Error: No active SSH connection[/red]")
         console.print("[yellow]Please connect to a device first[/yellow]")
         console.input("\n[dim]Press Enter to continue...[/dim]")
         return
     
-    # Use existing connection
-    server.set_connection(
-        connection_manager.ssh_client,
-        connection_manager.current_device
-    )
+    # Use the first active connection
+    connection_id = active_connections[0]['id']
+    ssh_connection = connection_manager.get_connection(connection_id)
+    
+    if not ssh_connection or not ssh_connection.client:
+        console.print("[red]Error: Invalid SSH connection[/red]")
+        console.input("\n[dim]Press Enter to continue...[/dim]")
+        return
+    
+    # Set connection with the SSH client from the connection object
+    device_info = {
+        'host': active_connections[0].get('hostname'),
+        'username': active_connections[0].get('username'),
+        'port': ssh_connection.profile.get('port', 22)
+    }
+    server.set_connection(ssh_connection.client, device_info)
     
     while True:
         console.clear()

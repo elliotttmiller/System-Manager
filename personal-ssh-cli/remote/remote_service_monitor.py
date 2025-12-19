@@ -21,14 +21,38 @@ class RemoteServiceMonitor:
     def __init__(self, connection_manager=None):
         self.console = console
         self.connection_manager = connection_manager
-        self.ssh_client = None
         self.device_info = {}
         
-    def set_connection(self, ssh_client, device_info=None):
-        """Set SSH connection from connection manager"""
-        self.ssh_client = ssh_client
-        self.device_info = device_info or {}
-        
+    def set_connection(self, connection_manager, connection_id):
+        """Set SSH connection using ConnectionManager."""
+        connection = connection_manager.get_connection(connection_id)
+        if not connection:
+            raise ValueError(f"Connection '{connection_id}' not found")
+
+        self.connection_manager = connection_manager
+        self.device_info = {
+            "host": connection.profile.get("hostname"),
+            "username": connection.profile.get("username"),
+            "port": connection.profile.get("port", 22),
+        }
+
+    def execute_command(self, connection_id, command, timeout=30):
+        """Execute command on remote device using ConnectionManager."""
+        connection = self.connection_manager.get_connection(connection_id)
+        if not connection:
+            return {"status": "error", "message": f"Connection '{connection_id}' not found"}
+
+        try:
+            result = connection.execute_command(command, timeout=timeout)
+            return {
+                "status": "success" if result.get("exit_code") == 0 else "error",
+                "output": result.get("output"),
+                "error": result.get("error"),
+                "exit_code": result.get("exit_code"),
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+    
     def connect(self, host, username, password=None, key_filename=None, port=22):
         """Establish SSH connection to remote device"""
         try:
@@ -59,26 +83,6 @@ class RemoteServiceMonitor:
             }
             
             return {"status": "success", "message": "Connected successfully"}
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
-    
-    def execute_command(self, command, timeout=30):
-        """Execute command on remote device"""
-        if not self.ssh_client:
-            return {"status": "error", "message": "Not connected to remote device"}
-        
-        try:
-            stdin, stdout, stderr = self.ssh_client.exec_command(command, timeout=timeout)
-            output = stdout.read().decode('utf-8')
-            error = stderr.read().decode('utf-8')
-            exit_code = stdout.channel.recv_exit_status()
-            
-            return {
-                "status": "success" if exit_code == 0 else "error",
-                "output": output,
-                "error": error,
-                "exit_code": exit_code
-            }
         except Exception as e:
             return {"status": "error", "message": str(e)}
     
@@ -436,17 +440,38 @@ def run(connection_manager=None):
     """Entry point for remote service monitor"""
     monitor = RemoteServiceMonitor(connection_manager)
     
-    if not connection_manager or not connection_manager.ssh_client:
+    if not connection_manager:
+        console.print("[red]Error: No connection manager available[/red]")
+        console.print("[yellow]Please connect to a device first[/yellow]")
+        console.input("\n[dim]Press Enter to continue...[/dim]")
+        return
+    
+    # Get the first active connection
+    connections = connection_manager.list_connections()
+    active_connections = [conn for conn in connections if conn.get('connected')]
+    
+    if not active_connections:
         console.print("[red]Error: No active SSH connection[/red]")
         console.print("[yellow]Please connect to a device first[/yellow]")
         console.input("\n[dim]Press Enter to continue...[/dim]")
         return
     
-    # Use existing connection
-    monitor.set_connection(
-        connection_manager.ssh_client,
-        connection_manager.current_device
-    )
+    # Use the first active connection
+    connection_id = active_connections[0]['id']
+    ssh_connection = connection_manager.get_connection(connection_id)
+    
+    if not ssh_connection or not ssh_connection.client:
+        console.print("[red]Error: Invalid SSH connection[/red]")
+        console.input("\n[dim]Press Enter to continue...[/dim]")
+        return
+    
+    # Set connection with the SSH client from the connection object
+    device_info = {
+        'host': active_connections[0].get('hostname'),
+        'username': active_connections[0].get('username'),
+        'port': ssh_connection.profile.get('port', 22)
+    }
+    monitor.set_connection(ssh_connection.client, device_info)
     
     while True:
         console.clear()
