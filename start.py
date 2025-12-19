@@ -20,6 +20,10 @@ Examples:
 import sys
 import os
 from pathlib import Path
+import codecs
+from core.cli_engine import main as cli_main
+import gui
+import traceback
 
 # Ensure UTF-8 encoding on Windows
 if sys.platform == 'win32':
@@ -27,7 +31,6 @@ if sys.platform == 'win32':
         sys.stdout.reconfigure(encoding='utf-8')
         sys.stderr.reconfigure(encoding='utf-8')
     except AttributeError:
-        import codecs
         sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
         sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
 
@@ -96,20 +99,23 @@ def check_dependencies():
 
 def main():
     """Main entry point."""
-    # Show banner only if no arguments or --help
-    if len(sys.argv) == 1 or '--help' in sys.argv:
-        print_banner()
-    
     # Check dependencies
     if not check_dependencies():
         sys.exit(1)
     
     try:
-        # Import and run the CLI engine
-        from core.cli_engine import main as cli_main
-        
-        # Run the CLI
-        cli_main()
+        # Check if command-line arguments provided
+        # If yes, use CLI mode; if no, use interactive GUI mode
+        if len(sys.argv) > 1:
+            # Show banner for help command
+            if '--help' in sys.argv:
+                print_banner()
+            
+            # Run in CLI mode
+            cli_main()
+        else:
+            # No arguments - launch interactive GUI
+            gui.main()
         
     except ImportError as e:
         print(f"\n❌ Error: Failed to import CLI engine: {e}")
@@ -125,7 +131,6 @@ def main():
         
     except Exception as e:
         print(f"\n❌ Fatal error: {e}")
-        import traceback
         traceback.print_exc()
         sys.exit(1)
 
