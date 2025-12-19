@@ -20,31 +20,62 @@ class DeviceDiscovery:
         self.config_manager = config_manager
     
     def scan_network(self, network_range: str = "192.168.1.0/24",
-                    port: int = 22, timeout: float = 1.0) -> List[Dict[str, Any]]:
+                    port: int = 22, timeout: float = 0.5, max_workers: int = 50) -> List[Dict[str, Any]]:
         """Scan network for SSH-enabled devices.
-        
+
+        This used to scan sequentially which could take many minutes on /24 ranges.
+        Use a ThreadPoolExecutor to parallelize TCP port checks so the scan completes
+        much faster. The default timeout was reduced to 0.5s and max_workers defaults
+        to 50 to balance speed and network load.
+
         Args:
             network_range: Network range to scan (CIDR notation)
             port: SSH port to check
-            timeout: Connection timeout
-            
+            timeout: Connection timeout per host (seconds)
+            max_workers: Number of concurrent worker threads
+
         Returns:
             List of discovered devices
         """
-        devices = []
-        
+        devices: List[Dict[str, Any]] = []
+
         # Parse network range
         ips = self._expand_network_range(network_range)
-        
-        for ip in ips:
-            if self._check_ssh_port(ip, port, timeout):
-                device_info = {
-                    'ip': ip,
-                    'port': port,
-                    'hostname': self._resolve_hostname(ip),
-                }
-                devices.append(device_info)
-        
+        if not ips:
+            return devices
+
+        # Limit workers to a sensible number
+        try:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+        except Exception:
+            # Fallback to sequential scan if concurrent module unavailable
+            for ip in ips:
+                if self._check_ssh_port(ip, port, timeout):
+                    devices.append({'ip': ip, 'port': port, 'hostname': self._resolve_hostname(ip)})
+            return devices
+
+        workers = min(max_workers, len(ips))
+
+        futures = {}
+        with ThreadPoolExecutor(max_workers=workers) as exc:
+            for ip in ips:
+                fut = exc.submit(self._check_ssh_port, ip, port, timeout)
+                futures[fut] = ip
+
+            for fut in as_completed(futures):
+                ip = futures[fut]
+                try:
+                    is_open = fut.result()
+                except Exception:
+                    is_open = False
+
+                if is_open:
+                    devices.append({
+                        'ip': ip,
+                        'port': port,
+                        'hostname': self._resolve_hostname(ip),
+                    })
+
         return devices
     
     def _expand_network_range(self, network_range: str) -> List[str]:
