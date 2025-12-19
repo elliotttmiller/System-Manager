@@ -37,10 +37,6 @@
 
 - [Troubleshooting](#-troubleshooting)```bash
 
-- [Contributing](#-contributing)# Clone the repository
-
-- [License](#-license)git clone https://github.com/elliotttmiller/System-Manager.git
-
 cd System-Manager
 
 ---

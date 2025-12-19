@@ -19,6 +19,7 @@ import sys
 import os
 from pathlib import Path
 import codecs
+import shutil
 
 # Ensure UTF-8 encoding on Windows
 if sys.platform == 'win32':
@@ -39,6 +40,17 @@ else:
     print(f"Error: Could not find 'personal-ssh-cli' directory at {personal_ssh_cli_dir}")
     print("Please ensure you're running this script from the project root directory.")
     sys.exit(1)
+
+
+def clean_cache():
+    """Clean the cache directory to ensure a fresh start."""
+    cache_dir = project_root / 'cache'
+    if cache_dir.exists() and cache_dir.is_dir():
+        try:
+            shutil.rmtree(cache_dir)
+            print("Cache cleaned successfully.")
+        except Exception as e:
+            print(f"Warning: Failed to clean cache: {e}")
 
 
 def check_dependencies():
@@ -72,7 +84,10 @@ def check_dependencies():
 
 def main():
     """Main entry point - route to TUI or CLI."""
-    
+
+    # Clean cache at the start
+    clean_cache()
+
     # Check dependencies first
     if not check_dependencies():
         sys.exit(1)
