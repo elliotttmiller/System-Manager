@@ -901,20 +901,69 @@ class TUIEngine:
         # Check if we have an active connection
         connections = self.conn_mgr.list_connections() if self.conn_mgr else []
         active_connections = [conn for conn in connections if conn.get('connected')]
-        
+
         if not self.conn_mgr or not active_connections:
-            self.console.print(Panel(
-                "[yellow]⚠️  No active connection[/yellow]\n\n"
-                "[info]Please connect to a device first:\n"
-                "  1. Go to 'Connect to Device' from main menu\n"
-                "  2. Select or create a connection\n"
-                "  3. Return here to manage the remote server[/info]",
-                border_style="yellow",
-                padding=(1, 2)
-            ))
-            self.console.print()
-            Prompt.ask("[dim]Press Enter to continue[/dim]")
-            return
+            # If there are saved profiles, offer to connect inline
+            profiles = self.config_mgr.list_profiles() if self.config_mgr else []
+
+            if profiles:
+                self.console.print(Panel(
+                    "[yellow]⚠️  No active connection[/yellow]\n\n"
+                    "[info]Select a saved profile to connect now, or cancel to return.[/info]",
+                    border_style="yellow",
+                    padding=(1, 2)
+                ))
+
+                values = [(p, p) for p in profiles]
+                values.append(("cancel", "❌  Cancel"))
+
+                choice = radiolist_dialog(
+                    title="Connect to Profile",
+                    text="Select a profile to connect and open Server Actions:",
+                    values=values,
+                    style=PT_DARK_STYLE,
+                ).run()
+
+                if not choice or choice == "cancel":
+                    Prompt.ask("[dim]Press Enter to continue[/dim]")
+                    return
+
+                # Attempt to create and open a connection
+                try:
+                    conn_id = self.conn_mgr.create_connection(choice)
+                    with Progress(SpinnerColumn(), TextColumn("[cyan]Connecting..."), console=self.console) as progress:
+                        task = progress.add_task("connect", total=None)
+                        success = self.conn_mgr.connect(conn_id, timeout=10)
+                        progress.update(task, visible=False)
+
+                    if not success:
+                        self.console.print(f"[red]✗ Failed to connect to {choice}[/red]")
+                        Prompt.ask("[dim]Press Enter to continue[/dim]")
+                        return
+
+                    # Refresh active connections
+                    connections = self.conn_mgr.list_connections()
+                    active_connections = [conn for conn in connections if conn.get('connected')]
+
+                except Exception as e:
+                    self.console.print(f"[red]✗ Connection error: {e}[/red]")
+                    Prompt.ask("[dim]Press Enter to continue[/dim]")
+                    return
+
+            else:
+                # No saved profiles — instruct user to create one first
+                self.console.print(Panel(
+                    "[yellow]⚠️  No active connection[/yellow]\n\n"
+                    "[info]Please create a profile and connect to a device first:\n"
+                    "  1. Go to 'Setup New Device' from main menu\n"
+                    "  2. Create/import a profile\n"
+                    "  3. Return here to manage the remote server[/info]",
+                    border_style="yellow",
+                    padding=(1, 2)
+                ))
+                self.console.print()
+                Prompt.ask("[dim]Press Enter to continue[/dim]")
+                return
         
         # Use the remote_server_actions module
         if "remote_server_actions" in self.remote_features:
@@ -992,6 +1041,7 @@ class TUIEngine:
                 ("discovery", "🔍  Device Discovery"),
                 ("security", "🔒  Security & Audit Logs"),
                 ("automation", "⚡  Automation Scripts"),
+                ("script_execution", "📜  Seamless Script Execution"),
                 ("back", "⬅️  Back"),
             ],
             style=PT_DARK_STYLE,
@@ -1009,6 +1059,8 @@ class TUIEngine:
             self.show_security()
         elif result == "automation":
             self.show_automation()
+        elif result == "script_execution":
+            self.show_script_execution()
     
     def show_monitoring(self):
         """Connection monitoring dashboard."""
@@ -1080,6 +1132,56 @@ class TUIEngine:
         self.console.print("  • Task workflows\n")
         Prompt.ask("Press Enter to continue")
     
+    def show_script_execution(self):
+        """Display and manage seamless script execution."""
+        self.clear_screen()
+
+        self.console.print()
+        title = Text("Seamless Script Execution", style="primary")
+        self.console.print(Panel(title, border_style="border", padding=(0, 2)))
+        self.console.print()
+
+        try:
+            # Prompt user for target (profile or connection ID)
+            target = Prompt.ask("[cyan]Enter target (profile name or connection ID)[/cyan]")
+
+            # Prompt user for local script path
+            local_script = Prompt.ask("[cyan]Enter path to local script[/cyan]")
+
+            # Optional parameters
+            remote_path = Prompt.ask("[cyan]Enter remote path (optional, default: /tmp/<script_name>)[/cyan]", default="")
+            interpreter = Prompt.ask("[cyan]Enter interpreter (optional, e.g., /bin/bash)[/cyan]", default="")
+            keep_file = Prompt.ask("[cyan]Keep remote file after execution? (y/n)[/cyan]", default="n").lower() == 'y'
+            timeout = int(Prompt.ask("[cyan]Enter timeout in seconds (0 for no timeout)[/cyan]", default="0"))
+
+            from features.seamless_script_execution import SeamlessScriptExecutor
+
+            executor = SeamlessScriptExecutor(self.conn_mgr, ui=self.console)
+
+            self.console.print(f"[yellow]Preparing to execute script {local_script} on {target}...[/yellow]")
+
+            result = executor.run(
+                target=target,
+                local_script=local_script,
+                remote_path=remote_path if remote_path else None,
+                interpreter=interpreter if interpreter else None,
+                keep_file=keep_file,
+                timeout=timeout
+            )
+
+            if not result.get('success'):
+                self.console.print(f"[red]Execution failed: {result.get('error')}[/red]")
+                return
+
+            self.console.print(f"[green]Script executed successfully (exit code {result.get('exit_code')})[/green]")
+            if result.get('stdout'):
+                self.console.print(result.get('stdout'))
+            if result.get('stderr'):
+                self.console.print(f"[red]{result.get('stderr')}[/red]")
+
+        except Exception as e:
+            self.console.print(f"[red]Error: {e}[/red]")
+
     # ===== LOCAL & REMOTE FEATURES =====
     
     def show_local_features_menu(self):

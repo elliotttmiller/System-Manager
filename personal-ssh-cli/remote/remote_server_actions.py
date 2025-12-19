@@ -528,29 +528,66 @@ def run(connection_manager=None):
         console.input("\n[dim]Press Enter to continue...[/dim]")
         return
     
-    # Get the first active connection
+    # Helper: attempt to connect using a saved profile name
+    def _attempt_connect_via_profile(profile_name: str, timeout: int = 10):
+        try:
+            conn_id = connection_manager.create_connection(profile_name)
+            conn = connection_manager.connect(conn_id, timeout=timeout)
+            if conn:
+                return conn_id, conn
+        except Exception as e:
+            console.print(f"[red]Connection error: {e}[/red]")
+        return None, None
+
+    # Get the first active connection (if any)
     connections = connection_manager.list_connections()
     active_connections = [conn for conn in connections if conn.get('connected')]
-    
+
     if not active_connections:
-        console.print("[red]Error: No active SSH connection[/red]")
-        console.print("[yellow]Please connect to a device first[/yellow]")
-        console.input("\n[dim]Press Enter to continue...[/dim]")
-        return
-    
-    # Use the first active connection
-    connection_id = active_connections[0]['id']
-    ssh_connection = connection_manager.get_connection(connection_id)
-    
+        # No active connection — offer to connect using a saved profile
+        profiles = []
+        try:
+            profiles = list(connection_manager.config_manager.list_profiles())
+        except Exception:
+            pass
+
+        if profiles:
+            console.print("[yellow]No active SSH connection. You can connect to a saved profile.[/yellow]")
+            console.print("[cyan]Available profiles:[/cyan] " + ", ".join(profiles))
+            profile = console.input("[cyan]Profile to connect (leave blank to cancel): [/cyan]").strip()
+            if profile:
+                conn_id, conn = _attempt_connect_via_profile(profile)
+                if not conn:
+                    console.print("[red]Failed to establish connection[/red]")
+                    console.input("\n[dim]Press Enter to continue...[/dim]")
+                    return
+                # Use this connection
+                ssh_connection = conn
+                active_info = {'id': conn_id, 'hostname': ssh_connection.profile.get('hostname'), 'username': ssh_connection.profile.get('username')}
+            else:
+                console.input("\n[dim]Press Enter to continue...[/dim]")
+                return
+        else:
+            console.print("[red]Error: No active SSH connection[/red]")
+            console.print("[yellow]Please connect to a device first[/yellow]")
+            console.input("\n[dim]Press Enter to continue...[/dim]")
+            return
+
+    else:
+        # Use the first active connection
+        connection_id = active_connections[0]['id']
+        ssh_connection = connection_manager.get_connection(connection_id)
+        active_info = active_connections[0]
+
     if not ssh_connection or not ssh_connection.client:
         console.print("[red]Error: Invalid SSH connection[/red]")
         console.input("\n[dim]Press Enter to continue...[/dim]")
         return
-    
+
     # Set connection with the SSH client from the connection object
     device_info = {
-        'host': active_connections[0].get('hostname'),
-        'username': active_connections[0].get('username'),
+        'host': active_info.get('hostname'),
+        'username': active_info.get('username'),
         'port': ssh_connection.profile.get('port', 22)
     }
     server.set_connection(ssh_connection.client, device_info)
@@ -564,12 +601,13 @@ def run(connection_manager=None):
             f"Manage SSH/SSHD Server",
             border_style="cyan"
         ))
-        
+
         console.print("\n[bold]Server Control:[/bold]")
         console.print("1. Check Server Status")
         console.print("2. Start SSH Server")
         console.print("3. Stop SSH Server")
         console.print("4. Restart SSH Server")
+        console.print("C. Connect / Retry Connection")
         console.print()
         console.print("[bold]Startup Configuration:[/bold]")
         console.print("5. Enable Autostart (Boot)")
@@ -581,73 +619,73 @@ def run(connection_manager=None):
         console.print("9. Full Status Report")
         console.print()
         console.print("0. Back")
-        
+
         choice = console.input("\n[cyan]Select option:[/cyan] ").strip()
-        
+
         if choice == "1":
             server.display_server_status()
             console.input("\n[dim]Press Enter to continue...[/dim]")
-            
+
         elif choice == "2":
             with console.status("[cyan]Starting SSH server...[/cyan]"):
                 result = server.start_ssh_server()
-            
+
             if result["success"]:
                 console.print(f"\n[green]✓ {result['message']}[/green]")
             else:
                 console.print(f"\n[red]✗ {result['message']}[/red]")
-            
+
             if result.get("details"):
                 console.print(f"\n[dim]{result['details'][:200]}[/dim]")
-            
+
             console.input("\n[dim]Press Enter to continue...[/dim]")
-            
+
         elif choice == "3":
             result = server.stop_ssh_server()
-            
+
             if result["success"]:
                 console.print(f"\n[green]✓ {result['message']}[/green]")
             else:
                 console.print(f"\n[yellow]{result['message']}[/yellow]")
-            
+
             console.input("\n[dim]Press Enter to continue...[/dim]")
-            
+
         elif choice == "4":
             result = server.restart_ssh_server()
-            
+
             if result["success"]:
                 console.print(f"\n[green]✓ {result['message']}[/green]")
             else:
                 console.print(f"\n[red]✗ {result['message']}[/red]")
-            
+
             console.input("\n[dim]Press Enter to continue...[/dim]")
-            
+
         elif choice == "5":
             with console.status("[cyan]Enabling autostart...[/cyan]"):
                 result = server.enable_ssh_autostart()
-            
+
             if result["success"]:
                 console.print(f"\n[green]✓ {result['message']}[/green]")
             else:
                 console.print(f"\n[red]✗ {result['message']}[/red]")
-            
+
             console.input("\n[dim]Press Enter to continue...[/dim]")
-            
+
         elif choice == "6":
             with console.status("[cyan]Disabling autostart...[/cyan]"):
                 result = server.disable_ssh_autostart()
-            
+
             if result["success"]:
                 console.print(f"\n[green]✓ {result['message']}[/green]")
             else:
                 console.print(f"\n[red]✗ {result['message']}[/red]")
-            
+
             console.input("\n[dim]Press Enter to continue...[/dim]")
-            
+
         elif choice == "7":
             with console.status("[cyan]Loading configuration...[/cyan]"):
                 result = server.get_ssh_config()
-            
+
             if result["success"]:
                 console.print(Panel(
                     result["config"],
@@ -656,16 +694,16 @@ def run(connection_manager=None):
                 ))
             else:
                 console.print(f"\n[red]✗ {result['message']}[/red]")
-            
+
             console.input("\n[dim]Press Enter to continue...[/dim]")
-            
+
         elif choice == "8":
             lines = console.input("[cyan]Number of log lines (default 50):[/cyan] ").strip()
             lines = int(lines) if lines.isdigit() else 50
-            
+
             with console.status("[cyan]Loading logs...[/cyan]"):
                 result = server.get_ssh_logs(lines)
-            
+
             if result["success"]:
                 console.print(Panel(
                     result["logs"],
@@ -674,33 +712,63 @@ def run(connection_manager=None):
                 ))
             else:
                 console.print(f"\n[red]✗ {result['message']}[/red]")
-            
+
             console.input("\n[dim]Press Enter to continue...[/dim]")
-            
+
         elif choice == "9":
             status = server.display_server_status()
-            
+
             console.print("\n[bold cyan]Additional Information:[/bold cyan]")
-            
+
             # Get configuration
             with console.status("[cyan]Loading configuration...[/cyan]"):
                 config = server.get_ssh_config()
-            
+
             if config["success"]:
                 console.print(f"\n[green]✓ Configuration accessible at: {config['path']}[/green]")
-            
+
             # Get logs
             with console.status("[cyan]Loading recent logs...[/cyan]"):
                 logs = server.get_ssh_logs(10)
-            
+
             if logs["success"] and logs["logs"]:
                 console.print("\n[bold]Recent Log Entries:[/bold]")
                 console.print(Panel(logs["logs"][:500], border_style="yellow"))
-            
+
             console.input("\n[dim]Press Enter to continue...[/dim]")
-            
+
         elif choice == "0":
             break
+
+        elif choice.lower() == 'c':
+            # Connect / Retry: prompt for profile and attempt connection
+            try:
+                profiles = list(connection_manager.config_manager.list_profiles())
+            except Exception:
+                profiles = []
+
+            if not profiles:
+                console.print("[yellow]No saved profiles available to connect.[/yellow]")
+                console.input("\n[dim]Press Enter to continue...[/dim]")
+                continue
+
+            console.print("[cyan]Available profiles:[/cyan] " + ", ".join(profiles))
+            profile = console.input("[cyan]Profile to connect (leave blank to cancel): [/cyan]").strip()
+            if not profile:
+                continue
+
+            conn_id, conn = _attempt_connect_via_profile(profile)
+            if not conn:
+                console.print("[red]Connection attempt failed.[/red]")
+                console.input("\n[dim]Press Enter to continue...[/dim]")
+                continue
+
+            # Update server connection context
+            ssh_connection = conn
+            device_info = {'host': ssh_connection.profile.get('hostname'), 'username': ssh_connection.profile.get('username'), 'port': ssh_connection.profile.get('port', 22)}
+            server.set_connection(ssh_connection.client, device_info)
+            console.print(f"[green]Connected to {profile} — resuming Server Actions[/green]")
+            continue
 
 
 if __name__ == "__main__":

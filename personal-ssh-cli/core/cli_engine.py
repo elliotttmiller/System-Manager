@@ -353,6 +353,44 @@ def upload(connection_id: str, local_path: str, remote_path: str, verify: bool):
         console.print(f"[red]Error: {e}[/red]")
 
 
+@cli.command('run-script')
+@click.argument('target')
+@click.argument('local_script', type=click.Path(exists=True))
+@click.option('--remote-path', type=click.Path(), help='Remote destination path (default: /tmp/<script_name>)')
+@click.option('--interpreter', help='Interpreter to run the script (e.g. /bin/bash, /usr/bin/python3)')
+@click.option('--keep-file', is_flag=True, help='Keep the uploaded script on the remote host')
+@click.option('--timeout', default=0, help='Command timeout in seconds (0 = no timeout)')
+def run_script(target: str, local_script: str, remote_path: str, interpreter: str, keep_file: bool, timeout: int):
+    """Upload and execute a local script on a remote host.
+
+    TARGET may be either an existing connection id (conn_1) or a saved profile name.
+    LOCAL_SCRIPT must be a path to a local script file.
+    """
+    try:
+        from features.seamless_script_execution import SeamlessScriptExecutor
+
+        executor = SeamlessScriptExecutor(cli_engine.connection_manager, ui=cli_engine.ui)
+
+        console.print(f"[yellow]Preparing to run script {local_script} on {target}...[/yellow]")
+
+        res = executor.run(target=target, local_script=local_script,
+                           remote_path=remote_path, interpreter=interpreter,
+                           keep_file=keep_file, timeout=timeout)
+
+        if not res.get('success'):
+            console.print(f"[red]Failed: {res.get('error')}[/red]")
+            return
+
+        console.print(f"[green]Script executed (exit code {res.get('exit_code')})[/green]")
+        if res.get('stdout'):
+            console.print(res.get('stdout'))
+        if res.get('stderr'):
+            console.print(f"[red]{res.get('stderr')}[/red]")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
 @cli.command()
 @click.argument('connection_id')
 @click.argument('remote_path')
